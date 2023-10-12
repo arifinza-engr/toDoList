@@ -1,13 +1,14 @@
 <?php
 include "koneksi.php";
+
 $isi = $tgl_awal = $tgl_akhir = '';
-$notif = '';
-if (isset($_GET['id'])) {
+$notif = isset($_GET['notif']) ? $_GET['notif'] : '';
+
+if (isset($_GET['id']) && !isset($_POST['simpan'])) {
   $stmt = $mysqli->prepare("SELECT * FROM kegiatan WHERE id = ?");
   $stmt->bind_param("i", $_GET['id']);
   $stmt->execute();
-  $result = $stmt->get_result();
-  $data = $result->fetch_assoc();
+  $data = $stmt->get_result()->fetch_assoc();
   if ($data) {
     $isi = $data['isi'];
     $tgl_awal = $data['tgl_awal'];
@@ -15,51 +16,46 @@ if (isset($_GET['id'])) {
   }
   $stmt->close();
 }
-if (isset($_POST['simpan'])) {
-  if (isset($_POST['id'])) {
-    $stmt = $mysqli->prepare("UPDATE kegiatan SET isi = ?, tgl_awal = ?, tgl_akhir = ?
-WHERE id = ?");
-    $stmt->bind_param(
-      "sssi",
-      $_POST['isi'],
-      $_POST['tgl_awal'],
-      $_POST['tgl_akhir'],
-      $_POST['id']
-    );
-    $stmt->execute();
-    $stmt->close();
-    $notif = "updated";
-  } else {
-    $stmt = $mysqli->prepare("INSERT INTO kegiatan (isi, tgl_awal, tgl_akhir, status)
-VALUES (?, ?, ?, 0)");
-    $stmt->bind_param("sss", $_POST['isi'], $_POST['tgl_awal'], $_POST['tgl_akhir']);
-    $stmt->execute();
-    $stmt->close();
-    $notif = "added";
-  }
-  // Redirect setelah simpan
-  header('Location: index.php?notif=' . $notif);
-  exit();
-}
-if (isset($_GET['aksi'])) {
-  if ($_GET['aksi'] == 'hapus') {
 
-    $stmt = $mysqli->prepare("DELETE FROM kegiatan WHERE id = ?");
-    $stmt->bind_param("i", $_GET['id']);
-    $stmt->execute();
-    $stmt->close();
-    $notif = "deleted";
-  } elseif ($_GET['aksi'] == 'ubah_status') {
-    $stmt = $mysqli->prepare("UPDATE kegiatan SET status = ? WHERE id = ?");
-    $stmt->bind_param("ii", $_GET['status'], $_GET['id']);
-    $stmt->execute();
-    $stmt->close();
-    $notif = "status_updated";
+if (isset($_POST['simpan'])) {
+  $isi = $_POST['isi'];
+  $tgl_awal = $_POST['tgl_awal'];
+  $tgl_akhir = $_POST['tgl_akhir'];
+  if (isset($_POST['id'])) {
+    $stmt = $mysqli->prepare("UPDATE kegiatan SET isi = ?, tgl_awal = ?, tgl_akhir = ? WHERE id = ?");
+    $stmt->bind_param("sssi", $isi, $tgl_awal, $tgl_akhir, $_POST['id']);
+  } else {
+    $stmt = $mysqli->prepare("INSERT INTO kegiatan (isi, tgl_awal, tgl_akhir, status) VALUES (?, ?, ?, 0)");
+    $stmt->bind_param("sss", $isi, $tgl_awal, $tgl_akhir);
   }
-  // Redirect setelah aksi
+  $stmt->execute();
+  $stmt->close();
+  $notif = "data_saved";
   header('Location: index.php?notif=' . $notif);
   exit();
 }
+
+if (isset($_GET['aksi'])) {
+  $notif = ""; // Inisialisasi variabel notif
+  switch ($_GET['aksi']) {
+    case 'hapus':
+      $stmt = $mysqli->prepare("DELETE FROM kegiatan WHERE id = ?");
+      $stmt->bind_param("i", $_GET['id']);
+      $notif = "deleted"; // Set notif untuk kasus data dihapus
+      break;
+    case 'ubah_status':
+      $stmt = $mysqli->prepare("UPDATE kegiatan SET status = ? WHERE id = ?");
+      $stmt->bind_param("ii", $_GET['status'], $_GET['id']);
+      $notif = "status_updated"; // Set notif untuk kasus status diperbarui
+      break;
+  }
+  $stmt->execute();
+  $stmt->close();
+  header('Location: index.php?notif=' . $notif);
+  exit();
+}
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,6 +65,7 @@ if (isset($_GET['aksi'])) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-
 T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <script src="//cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <title>To Do List</title>
 </head>
 
@@ -121,8 +118,7 @@ T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="a
       </thead>
       <tbody>
         <?php
-        $result = mysqli_query($mysqli, "SELECT * FROM kegiatan ORDER BY status,
-tgl_awal");
+        $result = mysqli_query($mysqli, "SELECT * FROM kegiatan ORDER BY status, tgl_awal");
         $no = 1;
         while ($data = mysqli_fetch_array($result)) {
         ?>
@@ -136,27 +132,18 @@ tgl_awal");
               <?php
               if ($data['status'] == '1') {
               ?>
-                <a class="btn btn-success rounded-pill px-3" href="index.php?id=<?php
-                                                                                echo $data['id'] ?>&aksi=ubah_status&status=0">Sudah</a>
+                <a class="btn btn-success rounded-pill px-3" href="index.php?id=<?php echo $data['id'] ?>&aksi=ubah_status&status=0">Sudah</a>
               <?php
               } else {
               ?>
-                <a class="btn btn-warning rounded-pill px-3" href="index.php?id=<?php
-                                                                                echo $data['id'] ?>&aksi=ubah_status&status=1">Belum</a>
+                <a class="btn btn-warning rounded-pill px-3" href="index.php?id=<?php echo $data['id'] ?>&aksi=ubah_status&status=1">Belum</a>
               <?php
               }
               ?>
             </td>
             <td>
-
-              <a class="btn btn-info rounded-pill px-3" data-bs-toggle="modal" data- bs-target="#ubahModal" data-id="<?php echo $data['id']; ?>" data-isi="<?php echo
-
-                                                                                                                                                            $data['isi']; ?>" data-tgl_awal="<?php echo $data['tgl_awal']; ?>" data- tgl_akhir="<?php echo $data['tgl_akhir']; ?>">
-
-                Ubah
-              </a>
-              <a class="btn btn-danger rounded-pill px-3" href="index.php?id=<?php
-                                                                              echo $data['id'] ?>&aksi=hapus">Hapus</a>
+              <a class="btn btn-info rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#ubahModal" data-id="<?php echo $data['id']; ?>" data-isi="<?php echo $data['isi']; ?>" data-tgl_awal="<?php echo $data['tgl_awal']; ?>" data-tgl_akhir="<?php echo $data['tgl_akhir']; ?>">Ubah</a>
+              <a class="btn btn-danger rounded-pill px-3" href="index.php?id=<?php echo $data['id'] ?>&aksi=hapus">Hapus</a>
             </td>
           </tr>
         <?php
@@ -199,8 +186,7 @@ tgl_awal");
 
             <button type="button" class="btn btn-secondary" data-bs- dismiss="modal">Tutup</button>
 
-            <button type="submit" class="btn btn-primary" name="simpan">Simpan
-              Perubahan</button>
+            <button type="submit" class="btn btn-primary" name="simpan">Simpan Perubahan</button>
           </div>
         </form>
       </div>
@@ -233,6 +219,33 @@ tgl_awal");
       ubahModal.querySelector('#ubahTanggalAkhir').value = tgl_akhir;
     });
   </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var notif = '<?= $notif; ?>';
+      if (notif === 'deleted') {
+        Swal.fire(
+          'Deleted!',
+          'Your data has been deleted.',
+          'success'
+        )
+      } else if (notif === 'status_updated') {
+        Swal.fire(
+          'Updated!',
+          'The status has been updated.',
+          'success'
+        )
+      } else if (notif === 'data_saved') {
+        Swal.fire(
+          'Saved!',
+          'The data has been saved.',
+          'success'
+        )
+      }
+    });
+  </script>
+
+
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js" integrity="sha384-BBtl+eGJRgqQAUMxJ7pMwbEyER4l1g+O15P+16Ep7Q9Q+zqX6gSbd85u4mG4QzX+" crossorigin="anonymous"></script>
 </body>
